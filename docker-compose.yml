@@ -1,0 +1,43 @@
+version: '3.7'
+services:
+  api:
+    build: .
+    hostname: api
+    ports:
+     - "5000:5000"
+     - "8090:8090"
+    environment:
+      JAVA_OPTS: "-Djava.security.egd=file:/dev/./urandom"
+      JBP_CONFIG_OPEN_JDK_JRE: '{jre: { version: 1.8.0_+ }}'
+    depends_on:
+      - postgres
+    command: ["./wait-for-it.sh", "-t", "30", "rabbit:5672", "--", "./wait-for-it.sh", "-t", "30", "postgres:5432", "--", "java", "-agentlib:jdwp=transport=dt_socket,address=5000,server=y,suspend=n", "-jar", "application.jar"] 
+      
+  flyway:
+    image: dhoer/flyway:alpine
+    build: src/docker/flyway/
+    entrypoint: ["/flyway/bin/wait-for-it.sh", "api:8090", "--", "/flyway/bin/wait-for-it.sh", "api:8090/actuator/health", "--", "flyway"]
+    command: ["-url=jdbc:postgresql://postgres:5432/db-docker", "-baselineOnMigrate=true", "-schemas=public", "-user=docker-postgres-user", "-password=docker-postgres-password", "info", "migrate", "info"]
+    depends_on:
+      - api
+
+  rabbit:
+    image: rabbitmq:3-management
+    hostname: rabbit
+    environment:
+      RABBITMQ_DEFAULT_USER: rabbitmq-docker
+      RABBITMQ_DEFAULT_PASS: rabbitmq-docker
+      RABBITMQ_DEFAULT_VHOST: docker
+    ports:
+      - 5672:5672
+      - 15672:15672
+      
+  postgres:
+    hostname: database
+    ports:
+      - "5432:5432"
+    build: src/docker/postgres/
+    environment:
+      - POSTGRES_USER=docker-postgres-user
+      - POSTGRES_PASSWORD=docker-postgres-password
+      - POSTGRES_DB=db-docker
