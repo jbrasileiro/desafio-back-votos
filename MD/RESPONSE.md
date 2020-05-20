@@ -1,5 +1,3 @@
-# API-kishijoten-voting
-
 
 ## STATUS
 
